@@ -1,3 +1,4 @@
+import concurrent.futures
 import html
 import json
 import os
@@ -66,6 +67,22 @@ def _device_action(host, action):
         return 0, {"ok": False, "error": str(exc)}
     except Exception as exc:
         return 0, {"ok": False, "error": str(exc)}
+
+
+def _collect_statuses():
+    status_map = {}
+    max_workers = len(DEVICE_HOSTS) if DEVICE_HOSTS else 1
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_device_status, host): host for host in DEVICE_HOSTS}
+        for future, host in futures.items():
+            try:
+                _, payload = future.result(timeout=REQUEST_TIMEOUT)
+            except concurrent.futures.TimeoutError:
+                payload = {"ok": False, "error": "status timeout"}
+            except Exception as exc:
+                payload = {"ok": False, "error": str(exc)}
+            status_map[host] = payload
+    return status_map
 
 
 def _render_page(status_map):
@@ -152,11 +169,11 @@ class ControlHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True})
             return
         if path == "/":
-            status_map = {host: _device_status(host)[1] for host in DEVICE_HOSTS}
+            status_map = _collect_statuses()
             self._send_html(_render_page(status_map))
             return
         if path == "/status":
-            status_map = {host: _device_status(host)[1] for host in DEVICE_HOSTS}
+            status_map = _collect_statuses()
             self._send_json(200, {"ok": True, "devices": status_map})
             return
         self._send_json(404, {"ok": False, "error": "not found"})
@@ -190,6 +207,7 @@ class ControlHandler(BaseHTTPRequestHandler):
 def main():
     if not DEVICE_HOSTS:
         raise SystemExit("PICAM_DEVICES is empty")
+    socket.setdefaulttimeout(REQUEST_TIMEOUT)
     server = HTTPServer((HOST, PORT), ControlHandler)
     print(f"picam-control server listening on {HOST}:{PORT}")
     server.serve_forever()
