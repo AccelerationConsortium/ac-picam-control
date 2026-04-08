@@ -52,6 +52,37 @@ curl -X POST http://<tailscale-ip>:8080/start
 curl -X POST http://<tailscale-ip>:8080/stop
 ```
 
+## Central control server (optional)
+
+This repo also ships a tiny central server (`server.py`) that aggregates device status and provides a simple web UI with start/stop/restart buttons.
+
+### Configure
+Set environment variables (example):
+```
+PICAM_SERVER_HOST=127.0.0.1
+PICAM_SERVER_PORT=8081
+PICAM_AGENT_PORT=8080
+PICAM_DEVICES=cam-a.tailnet-name.ts.net,cam-b.tailnet-name.ts.net,cam-c.tailnet-name.ts.net
+```
+
+### Run manually
+```
+python3 /home/ac/ac-picam-control/server.py
+```
+
+### systemd unit
+Install the provided unit:
+```
+sudo cp /home/ac/ac-picam-control/picam-control-server.service /etc/systemd/system/picam-control-server.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now picam-control-server
+```
+
+Then visit:
+```
+http://<tailscale-ip>:8081/
+```
+
 ## Tailscale ACL guidance (recommended)
 
 Restrict access to the agent by ACLs, so only admins can reach the port.
