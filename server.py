@@ -25,6 +25,13 @@ DEVICE_HOSTS = [d.strip() for d in RAW_DEVICES.split(",") if d.strip()]
 
 AGENT_PORT = int(os.environ.get("PICAM_AGENT_PORT", "8080"))
 REQUEST_TIMEOUT = float(os.environ.get("PICAM_AGENT_TIMEOUT", "5"))
+DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
+
+
+def _log(message):
+    if DEBUG:
+        print(message, flush=True)
+
 
 JSON_HEADERS = {
     "Content-Type": "application/json",
@@ -37,9 +44,12 @@ def _agent_url(host, path):
 
 
 def _fetch_json(url, method="GET"):
+    _log(f"agent_request method={method} url={url}")
     req = urllib.request.Request(url, method=method)
     with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        return resp.status, resp.read().decode("utf-8")
+        body = resp.read().decode("utf-8")
+        _log(f"agent_response status={resp.status} url={url}")
+        return resp.status, body
 
 
 def _safe_json(text):
@@ -54,8 +64,10 @@ def _device_status(host):
         status_code, body = _fetch_json(_agent_url(host, "/status"))
         return status_code, _safe_json(body)
     except urllib.error.URLError as exc:
+        _log(f"status_error host={host} error={exc}")
         return 0, {"ok": False, "error": str(exc)}
     except Exception as exc:
+        _log(f"status_error host={host} error={exc}")
         return 0, {"ok": False, "error": str(exc)}
 
 
@@ -64,8 +76,10 @@ def _device_action(host, action):
         status_code, body = _fetch_json(_agent_url(host, f"/{action}"), method="POST")
         return status_code, _safe_json(body)
     except urllib.error.URLError as exc:
+        _log(f"action_error host={host} action={action} error={exc}")
         return 0, {"ok": False, "error": str(exc)}
     except Exception as exc:
+        _log(f"action_error host={host} action={action} error={exc}")
         return 0, {"ok": False, "error": str(exc)}
 
 
@@ -165,6 +179,7 @@ class ControlHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        _log(f"http_get path={path}")
         if path == "/health":
             self._send_json(200, {"ok": True})
             return
@@ -180,6 +195,7 @@ class ControlHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        _log(f"http_post path={path}")
         if path != "/action":
             self._send_json(404, {"ok": False, "error": "not found"})
             return
