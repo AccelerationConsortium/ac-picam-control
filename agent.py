@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 SERVICE_NAME = os.environ.get("PICAM_SERVICE_NAME", "picam")
 HOST = os.environ.get("PICAM_AGENT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PICAM_AGENT_PORT", "8080"))
+DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
 
 JSON_HEADERS = {
     "Content-Type": "application/json",
@@ -14,13 +15,20 @@ JSON_HEADERS = {
 }
 
 
+def _log(message):
+    if DEBUG:
+        print(message, flush=True)
+
+
 def _run_systemctl(*args):
+    _log(f"systemctl args={args} service={SERVICE_NAME}")
     result = subprocess.run(
         ["systemctl", *args, SERVICE_NAME],
         capture_output=True,
         text=True,
         check=False,
     )
+    _log(f"systemctl exit_code={result.returncode}")
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
@@ -47,6 +55,7 @@ class PicamHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        _log(f"http_get path={path}")
         if path == "/health":
             self._send_json(200, {"ok": True, "service": SERVICE_NAME})
             return
@@ -58,6 +67,7 @@ class PicamHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        _log(f"http_post path={path}")
         if path == "/start":
             code, stdout, stderr = _run_systemctl("start")
             self._send_json(
