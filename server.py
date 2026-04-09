@@ -3,6 +3,7 @@ import html
 import json
 import os
 import socket
+import sqlite3
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,7 @@ DEVICE_HOSTS = [d.strip() for d in RAW_DEVICES.split(",") if d.strip()]
 AGENT_PORT = int(os.environ.get("PICAM_AGENT_PORT", "8080"))
 REQUEST_TIMEOUT = float(os.environ.get("PICAM_AGENT_TIMEOUT", "5"))
 DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
+STATE_DB = os.environ.get("PICAM_STATE_DB", "state.db")
 
 YT_CLIENT_ID = os.environ.get("YT_CLIENT_ID", "")
 YT_CLIENT_SECRET = os.environ.get("YT_CLIENT_SECRET", "")
@@ -48,6 +50,41 @@ JSON_HEADERS = {
 }
 
 STREAM_STATE = {}
+
+
+def _init_state_db():
+    conn = sqlite3.connect(STATE_DB)
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS desired_state (host TEXT PRIMARY KEY, should_stream INTEGER NOT NULL, updated_at TEXT NOT NULL)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _set_desired_state(host, should_stream):
+    conn = sqlite3.connect(STATE_DB)
+    try:
+        conn.execute(
+            "INSERT INTO desired_state (host, should_stream, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(host) DO UPDATE SET should_stream=excluded.should_stream, updated_at=excluded.updated_at",
+            (host, 1 if should_stream else 0, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _get_desired_hosts():
+    conn = sqlite3.connect(STATE_DB)
+    try:
+        rows = conn.execute(
+            "SELECT host FROM desired_state WHERE should_stream=1"
+        ).fetchall()
+        return [row[0] for row in rows]
+    finally:
+        conn.close()
 
 
 def _agent_url(host, path):
@@ -500,12 +537,16 @@ class ControlHandler(BaseHTTPRequestHandler):
 
         if cmd == "start_stream":
             status_code, payload = _start_stream_for_host(host)
+            if status_code:
+                _set_desired_state(host, True)
             self._send_json(
                 200 if status_code else 500, {"ok": True, "result": payload}
             )
             return
         if cmd == "stop_stream":
             status_code, payload = _device_stream_stop(host)
+            if status_code:
+                _set_desired_state(host, False)
             self._send_json(
                 200 if status_code else 500, {"ok": True, "result": payload}
             )
@@ -522,6 +563,15 @@ def main():
     if not DEVICE_HOSTS:
         raise SystemExit("PICAM_DEVICES is empty")
     socket.setdefaulttimeout(REQUEST_TIMEOUT)
+    _init_state_db()
+    for host in _get_desired_hosts():
+        if host not in DEVICE_HOSTS:
+            continue
+        try:
+            _log(f"resuming_stream host={host}")
+            _start_stream_for_host(host)
+        except Exception as exc:
+            _log(f"resume_failed host={host} error={exc}")
     server = HTTPServer((HOST, PORT), ControlHandler)
     print(f"picam-control server listening on {HOST}:{PORT}")
     server.serve_forever()
