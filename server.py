@@ -144,13 +144,16 @@ def _create_youtube_stream(access_token, title):
     return payload["id"], ffmpeg_url, stream_key
 
 
-def _create_youtube_broadcast(access_token, title):
+def _create_youtube_broadcast(access_token, title, stream_id):
     for status in ("active", "upcoming"):
         items = _list_broadcasts(access_token, status)
         for item in items:
             snippet = item.get("snippet") or {}
+            content_details = item.get("contentDetails") or {}
+            bound_stream_id = content_details.get("boundStreamId")
             if snippet.get("title") == title and item.get("id"):
-                return item["id"]
+                if not bound_stream_id or bound_stream_id == stream_id:
+                    return item["id"]
     scheduled_start = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
     _, payload = _youtube_request(
         "POST",
@@ -231,7 +234,7 @@ def _start_stream_for_host(host):
     access_token = _get_access_token()
     title = host.split(".")[0]
     stream_id, ffmpeg_url, stream_key = _create_youtube_stream(access_token, title)
-    broadcast_id = _create_youtube_broadcast(access_token, title)
+    broadcast_id = _create_youtube_broadcast(access_token, title, stream_id)
     _bind_broadcast(access_token, broadcast_id, stream_id)
     status_code, body = _post_json(
         _agent_url(host, "/stream/start"),
