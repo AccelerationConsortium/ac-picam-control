@@ -1,8 +1,12 @@
 import json
 import os
 import shutil
+import socket
 import subprocess
+import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
@@ -10,6 +14,9 @@ SERVICE_NAME = os.environ.get("PICAM_SERVICE_NAME", "picam")
 HOST = os.environ.get("PICAM_AGENT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PICAM_AGENT_PORT", "8080"))
 DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
+PICAM_SERVER_URL = os.environ.get("PICAM_SERVER_URL", "")
+PICAM_POLL_INTERVAL = float(os.environ.get("PICAM_POLL_INTERVAL", "8"))
+PICAM_HOSTNAME = os.environ.get("PICAM_HOSTNAME", socket.gethostname())
 
 STREAM_WIDTH = int(os.environ.get("PICAM_WIDTH", "640"))
 STREAM_HEIGHT = int(os.environ.get("PICAM_HEIGHT", "360"))
@@ -81,6 +88,40 @@ def _stop_stream():
         STREAM_CAMERA_PROC.terminate()
     STREAM_FFMPEG_PROC = None
     STREAM_CAMERA_PROC = None
+
+
+def _fetch_desired_state():
+    if not PICAM_SERVER_URL:
+        return None
+    url = f"{PICAM_SERVER_URL.rstrip('/')}/desired-state/{PICAM_HOSTNAME}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        _log(f"desired_state_error host={PICAM_HOSTNAME} error={exc}")
+        return None
+
+
+def _reconcile_loop():
+    while True:
+        try:
+            desired = _fetch_desired_state()
+            if desired and desired.get("ok"):
+                should_stream = bool(desired.get("should_stream"))
+                if should_stream and STREAM_FFMPEG_PROC is None:
+                    ffmpeg_url = desired.get("ffmpeg_url")
+                    stream_key = desired.get("stream_key")
+                    if ffmpeg_url and stream_key:
+                        _log(f"reconcile_start host={PICAM_HOSTNAME}")
+                        _start_stream(ffmpeg_url, stream_key)
+                    else:
+                        _log("reconcile_missing_stream_info")
+                if not should_stream and STREAM_FFMPEG_PROC is not None:
+                    _log(f"reconcile_stop host={PICAM_HOSTNAME}")
+                    _stop_stream()
+        except Exception as exc:
+            _log(f"reconcile_error error={exc}")
+        time.sleep(PICAM_POLL_INTERVAL)
 
 
 def _start_stream(ffmpeg_url, stream_key):
@@ -288,6 +329,9 @@ class PicamHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    if PICAM_SERVER_URL:
+        thread = threading.Thread(target=_reconcile_loop, daemon=True)
+        thread.start()
     server = HTTPServer((HOST, PORT), PicamHandler)
     print(f"picam-control listening on {HOST}:{PORT} for service '{SERVICE_NAME}'")
     server.serve_forever()
