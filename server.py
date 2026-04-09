@@ -358,11 +358,16 @@ def _render_page(status_map):
             thumb = f'<a href="{html.escape(watch_url)}" target="_blank" rel="noreferrer"><img src="{html.escape(thumbnail_url)}" alt="preview"></a>'
         else:
             thumb = '<span class="muted">—</span>'
+        watch_link = (
+            f'<a class="watch-link" href="{html.escape(watch_url)}" target="_blank" rel="noreferrer">Watch</a>'
+            if watch_url
+            else '<span class="muted">—</span>'
+        )
         rows.append(
             f"""
             <tr>
                 <td><code>{html.escape(host)}</code></td>
-                <td>{status_text}</td>
+                <td><span class="status {status_text}">{status_text}</span><div class="watch">{watch_link}</div></td>
                 <td class="thumb">{thumb}</td>
                 <td><div class="detail">{detail}</div></td>
                 <td>
@@ -385,13 +390,20 @@ def _render_page(status_map):
   <meta charset="utf-8">
   <title>PiCam Control</title>
   <style>
-    body {{ font-family: sans-serif; margin: 24px; }}
-    table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
-    th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
+    body {{ font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 24px; background: linear-gradient(135deg, #f6f5ff 0%, #e9f7ff 100%); }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 16px; background: rgba(255,255,255,0.85); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(20, 30, 60, 0.08); }}
+    th, td {{ border: 1px solid #e7e7f2; padding: 10px; vertical-align: top; }}
+    th {{ background: #f7f7fb; }}
     .detail {{ display: block; max-width: 420px; line-height: 1.3; max-height: calc(1.3em * 8); overflow: auto; word-break: break-word; white-space: pre-wrap; }}
-    .thumb img {{ width: 120px; border-radius: 6px; display: block; }}
+    .thumb img {{ width: 120px; border-radius: 6px; display: block; box-shadow: 0 6px 14px rgba(20, 30, 60, 0.12); }}
     .muted {{ color: #777; }}
-    form button {{ margin-right: 6px; }}
+    .status {{ display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.4px; }}
+    .status.ok {{ background: #cfeedd; color: #1a6b3f; }}
+    .status.error {{ background: #ffd6e2; color: #8a1f3d; }}
+    .watch {{ margin-top: 6px; }}
+    .watch-link {{ display: inline-block; padding: 4px 8px; border-radius: 8px; background: #e8ecff; color: #3b4a9f; text-decoration: none; font-size: 12px; }}
+    .watch-link:hover {{ background: #dfe5ff; }}
+    form button {{ margin-right: 6px; border-radius: 8px; border: 1px solid #e1e3f0; background: #f7f7fb; padding: 6px 10px; }}
   </style>
 </head>
 <body>
