@@ -329,6 +329,7 @@ class PicamHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    _log(f"agent_start hostname={PICAM_HOSTNAME} server_url={PICAM_SERVER_URL}")
     if PICAM_SERVER_URL:
         thread = threading.Thread(target=_reconcile_loop, daemon=True)
         thread.start()
