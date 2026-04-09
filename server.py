@@ -183,6 +183,20 @@ def _list_broadcasts(access_token, status):
     return payload.get("items") or []
 
 
+def _get_broadcast(access_token, broadcast_id):
+    _, payload = _youtube_request(
+        "GET",
+        "/liveBroadcasts",
+        access_token,
+        params={"part": "snippet,status,contentDetails", "id": broadcast_id},
+        body=None,
+    )
+    items = payload.get("items") or []
+    if not items:
+        raise RuntimeError("Broadcast not found")
+    return items[0]
+
+
 def _find_broadcast_for_title(access_token, title):
     for status in ("active", "upcoming", "completed"):
         try:
@@ -211,8 +225,15 @@ def _start_stream_for_host(host):
         _agent_url(host, "/stream/start"),
         {"ffmpeg_url": ffmpeg_url, "stream_key": stream_key},
     )
+    broadcast = _get_broadcast(access_token, broadcast_id)
+    thumbnails = (broadcast.get("snippet") or {}).get("thumbnails") or {}
+    thumbnail_url = (
+        thumbnails.get("high")
+        or thumbnails.get("medium")
+        or thumbnails.get("default")
+        or {}
+    ).get("url")
     watch_url = f"https://www.youtube.com/watch?v={broadcast_id}"
-    thumbnail_url = f"https://i.ytimg.com/vi/{broadcast_id}/hqdefault.jpg"
     STREAM_STATE[host] = {
         "broadcast_id": broadcast_id,
         "stream_id": stream_id,
@@ -294,13 +315,20 @@ def _render_page(status_map):
                 match = _find_broadcast_for_title(access_token, title)
                 if match:
                     broadcast_id = match.get("id")
+                    thumbnails = (match.get("snippet") or {}).get("thumbnails") or {}
+                    thumbnail_url = (
+                        thumbnails.get("high")
+                        or thumbnails.get("medium")
+                        or thumbnails.get("default")
+                        or {}
+                    ).get("url")
                     STREAM_STATE[host] = {
                         "broadcast_id": broadcast_id,
                         "stream_id": (match.get("contentDetails") or {}).get(
                             "boundStreamId"
                         ),
                         "watch_url": f"https://www.youtube.com/watch?v={broadcast_id}",
-                        "thumbnail_url": f"https://i.ytimg.com/vi/{broadcast_id}/hqdefault.jpg",
+                        "thumbnail_url": thumbnail_url,
                         "title": (match.get("snippet") or {}).get("title", title),
                     }
             except Exception as exc:
