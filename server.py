@@ -364,7 +364,7 @@ def _render_page(status_map):
                 <td><code>{html.escape(host)}</code></td>
                 <td>{status_text}</td>
                 <td class="thumb">{thumb}</td>
-                <td class="detail">{detail}</td>
+                <td><div class="detail">{detail}</div></td>
                 <td>
                     <form method="post" action="/action">
                         <input type="hidden" name="host" value="{html.escape(host)}">
@@ -388,7 +388,7 @@ def _render_page(status_map):
     body {{ font-family: sans-serif; margin: 24px; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
-    .detail {{ max-width: 420px; line-height: 1.3; max-height: calc(1.3em * 8); overflow: auto; word-break: break-word; white-space: pre-wrap; }}
+    .detail {{ display: block; max-width: 420px; line-height: 1.3; max-height: calc(1.3em * 8); overflow: auto; word-break: break-word; white-space: pre-wrap; }}
     .thumb img {{ width: 120px; border-radius: 6px; display: block; }}
     .muted {{ color: #777; }}
     form button {{ margin-right: 6px; }}
