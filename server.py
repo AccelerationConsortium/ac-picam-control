@@ -238,6 +238,7 @@ def _start_stream_for_host(host):
         "broadcast_id": broadcast_id,
         "stream_id": stream_id,
         "ffmpeg_url": ffmpeg_url,
+        "stream_key": stream_key,
         "watch_url": watch_url,
         "thumbnail_url": thumbnail_url,
         "title": title,
@@ -248,6 +249,7 @@ def _start_stream_for_host(host):
             "broadcast_id": broadcast_id,
             "stream_id": stream_id,
             "ffmpeg_url": ffmpeg_url,
+            "stream_key": stream_key,
             "watch_url": watch_url,
             "thumbnail_url": thumbnail_url,
         }
@@ -371,7 +373,7 @@ def _render_page(status_map):
     body {{ font-family: sans-serif; margin: 24px; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
-    .detail { max-width: 420px; max-height: 140px; overflow: auto; word-break: break-word; white-space: pre-wrap; }
+    .detail {{ max-width: 420px; max-height: 140px; overflow: auto; word-break: break-word; white-space: pre-wrap; }}
     .thumb img {{ width: 120px; border-radius: 6px; display: block; }}
     .muted {{ color: #777; }}
     form button {{ margin-right: 6px; }}
@@ -430,6 +432,22 @@ class ControlHandler(BaseHTTPRequestHandler):
         if path == "/status":
             status_map = _collect_statuses()
             self._send_json(200, {"ok": True, "devices": status_map})
+            return
+        if path.startswith("/desired-state/"):
+            host = path.split("/desired-state/", 1)[1]
+            info = STREAM_STATE.get(host)
+            if info:
+                self._send_json(
+                    200,
+                    {
+                        "ok": True,
+                        "should_stream": True,
+                        "ffmpeg_url": info.get("ffmpeg_url"),
+                        "stream_key": info.get("stream_key"),
+                    },
+                )
+            else:
+                self._send_json(200, {"ok": True, "should_stream": False})
             return
         self._send_json(404, {"ok": False, "error": "not found"})
 
