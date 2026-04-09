@@ -390,20 +390,20 @@ def _render_page(status_map):
   <meta charset="utf-8">
   <title>PiCam Control</title>
   <style>
-    body {{ font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 24px; background: linear-gradient(135deg, #f6f5ff 0%, #e9f7ff 100%); }}
-    table {{ width: 100%; border-collapse: collapse; margin-top: 16px; background: rgba(255,255,255,0.85); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(20, 30, 60, 0.08); }}
-    th, td {{ border: 1px solid #e7e7f2; padding: 10px; vertical-align: top; }}
-    th {{ background: #f7f7fb; }}
-    .detail {{ display: block; max-width: 420px; line-height: 1.3; max-height: calc(1.3em * 8); overflow: auto; word-break: break-word; white-space: pre-wrap; }}
-    .thumb img {{ width: 120px; border-radius: 6px; display: block; box-shadow: 0 6px 14px rgba(20, 30, 60, 0.12); }}
-    .muted {{ color: #777; }}
-    .status {{ display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.4px; }}
-    .status.ok {{ background: #cfeedd; color: #1a6b3f; }}
-    .status.error {{ background: #ffd6e2; color: #8a1f3d; }}
+    body {{ font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 24px; background: linear-gradient(135deg, #ffe6f2 0%, #fbd6f7 50%, #f2e7ff 100%); color: #4a2c3f; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 16px; background: rgba(255,245,250,0.92); border-radius: 16px; overflow: hidden; box-shadow: 0 12px 30px rgba(140, 70, 120, 0.12); }}
+    th, td {{ border: 1px solid #f5cde6; padding: 10px; vertical-align: top; }}
+    th {{ background: #ffe3f3; color: #6b2d52; }}
+    .detail {{ display: block; max-width: 420px; line-height: 1.35; max-height: calc(1.35em * 8); overflow: auto; word-break: break-word; white-space: pre-wrap; background: #fff0f8; border: 1px solid #f7c8e4; border-radius: 10px; padding: 8px; }}
+    .thumb img {{ width: 120px; border-radius: 10px; display: block; box-shadow: 0 8px 18px rgba(140, 70, 120, 0.18); }}
+    .muted {{ color: #9b6a86; }}
+    .status {{ display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: 0.4px; border: 1px solid #f3b9dc; }}
+    .status.ok {{ background: #dff7e9; color: #2a6b53; }}
+    .status.error {{ background: #ffd1e6; color: #8a1f3d; }}
     .watch {{ margin-top: 6px; }}
-    .watch-link {{ display: inline-block; padding: 4px 8px; border-radius: 8px; background: #e8ecff; color: #3b4a9f; text-decoration: none; font-size: 12px; }}
-    .watch-link:hover {{ background: #dfe5ff; }}
-    form button {{ margin-right: 6px; border-radius: 8px; border: 1px solid #e1e3f0; background: #f7f7fb; padding: 6px 10px; }}
+    .watch-link {{ display: inline-block; padding: 5px 10px; border-radius: 10px; background: #ffd6ef; color: #7a2d5c; text-decoration: none; font-size: 12px; border: 1px solid #f3b9dc; }}
+    .watch-link:hover {{ background: #ffc3e6; }}
+    form button {{ margin-right: 6px; border-radius: 10px; border: 1px solid #f3b9dc; background: #ffe3f3; padding: 6px 10px; color: #6b2d52; }}
   </style>
 </head>
 <body>
