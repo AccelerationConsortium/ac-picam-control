@@ -388,7 +388,7 @@ def _render_page(status_map):
     body {{ font-family: sans-serif; margin: 24px; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
-    .detail {{ max-width: 420px; max-height: 140px; overflow: auto; word-break: break-word; white-space: pre-wrap; }}
+    .detail {{ max-width: 420px; line-height: 1.3; max-height: calc(1.3em * 8); overflow: auto; word-break: break-word; white-space: pre-wrap; }}
     .thumb img {{ width: 120px; border-radius: 6px; display: block; }}
     .muted {{ color: #777; }}
     form button {{ margin-right: 6px; }}
