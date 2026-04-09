@@ -5,8 +5,9 @@ import os
 import socket
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 HOST = os.environ.get("PICAM_SERVER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PICAM_SERVER_PORT", "8081"))
@@ -26,6 +27,14 @@ DEVICE_HOSTS = [d.strip() for d in RAW_DEVICES.split(",") if d.strip()]
 AGENT_PORT = int(os.environ.get("PICAM_AGENT_PORT", "8080"))
 REQUEST_TIMEOUT = float(os.environ.get("PICAM_AGENT_TIMEOUT", "5"))
 DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
+
+YT_CLIENT_ID = os.environ.get("YT_CLIENT_ID", "")
+YT_CLIENT_SECRET = os.environ.get("YT_CLIENT_SECRET", "")
+YT_REFRESH_TOKEN = os.environ.get("YT_REFRESH_TOKEN", "")
+YT_APP_NAME = os.environ.get("YT_APP_NAME", "ac-picam-control")
+YT_PRIVACY = os.environ.get("YT_PRIVACY", "private")
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
 
 def _log(message):
@@ -52,11 +61,134 @@ def _fetch_json(url, method="GET"):
         return resp.status, body
 
 
+def _post_json(url, payload):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=data, method="POST", headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        body = resp.read().decode("utf-8")
+        return resp.status, body
+
+
 def _safe_json(text):
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         return {"raw": text}
+
+
+def _youtube_request(method, path, access_token, params=None, body=None):
+    url = f"{YOUTUBE_API_BASE}{path}"
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    data = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
+    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        return resp.status, json.loads(resp.read().decode("utf-8"))
+
+
+def _get_access_token():
+    if not (YT_CLIENT_ID and YT_CLIENT_SECRET and YT_REFRESH_TOKEN):
+        raise RuntimeError("YouTube credentials not configured on server")
+    data = urlencode(
+        {
+            "client_id": YT_CLIENT_ID,
+            "client_secret": YT_CLIENT_SECRET,
+            "refresh_token": YT_REFRESH_TOKEN,
+            "grant_type": "refresh_token",
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(TOKEN_URL, data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    token = payload.get("access_token")
+    if not token:
+        raise RuntimeError("YouTube token response missing access_token")
+    return token
+
+
+def _create_youtube_stream(access_token, title):
+    _, payload = _youtube_request(
+        "POST",
+        "/liveStreams",
+        access_token,
+        params={"part": "snippet,cdn,contentDetails,status"},
+        body={
+            "snippet": {"title": title, "description": f"Stream for {title}"},
+            "cdn": {
+                "frameRate": "variable",
+                "ingestionType": "rtmp",
+                "resolution": "variable",
+            },
+            "contentDetails": {"isReusable": True},
+        },
+    )
+    ingestion = (payload.get("cdn") or {}).get("ingestionInfo") or {}
+    ffmpeg_url = ingestion.get("ingestionAddress")
+    stream_key = ingestion.get("streamName")
+    if not (ffmpeg_url and stream_key):
+        raise RuntimeError("YouTube stream response missing ingestion info")
+    return payload["id"], ffmpeg_url, stream_key
+
+
+def _create_youtube_broadcast(access_token, title):
+    scheduled_start = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    _, payload = _youtube_request(
+        "POST",
+        "/liveBroadcasts",
+        access_token,
+        params={"part": "snippet,contentDetails,status"},
+        body={
+            "snippet": {"title": title, "scheduledStartTime": scheduled_start},
+            "status": {"privacyStatus": YT_PRIVACY, "selfDeclaredMadeForKids": False},
+            "contentDetails": {"enableAutoStart": True, "enableAutoStop": False},
+        },
+    )
+    return payload["id"]
+
+
+def _bind_broadcast(access_token, broadcast_id, stream_id):
+    _youtube_request(
+        "POST",
+        "/liveBroadcasts/bind",
+        access_token,
+        params={
+            "part": "id,contentDetails,status",
+            "id": broadcast_id,
+            "streamId": stream_id,
+        },
+        body=None,
+    )
+
+
+def _device_stream_stop(host):
+    return _post_json(_agent_url(host, "/stream/stop"), {})
+
+
+def _start_stream_for_host(host):
+    access_token = _get_access_token()
+    title = host.split(".")[0]
+    stream_id, ffmpeg_url, stream_key = _create_youtube_stream(access_token, title)
+    broadcast_id = _create_youtube_broadcast(access_token, title)
+    _bind_broadcast(access_token, broadcast_id, stream_id)
+    status_code, body = _post_json(
+        _agent_url(host, "/stream/start"),
+        {"ffmpeg_url": ffmpeg_url, "stream_key": stream_key},
+    )
+    payload = _safe_json(body)
+    payload.update(
+        {
+            "broadcast_id": broadcast_id,
+            "stream_id": stream_id,
+            "ffmpeg_url": ffmpeg_url,
+        }
+    )
+    return status_code, payload
 
 
 def _device_status(host):
@@ -116,9 +248,11 @@ def _render_page(status_map):
                 <td>
                     <form method="post" action="/action">
                         <input type="hidden" name="host" value="{html.escape(host)}">
-                        <button name="cmd" value="start">Start</button>
-                        <button name="cmd" value="stop">Stop</button>
-                        <button name="cmd" value="restart">Restart</button>
+                        <button name="cmd" value="start_stream">Start Stream</button>
+                        <button name="cmd" value="stop_stream">Stop Stream</button>
+                        <button name="cmd" value="start">Start Service</button>
+                        <button name="cmd" value="stop">Stop Service</button>
+                        <button name="cmd" value="restart">Restart Service</button>
                     </form>
                 </td>
             </tr>
@@ -209,8 +343,21 @@ class ControlHandler(BaseHTTPRequestHandler):
         if host not in DEVICE_HOSTS:
             self._send_json(400, {"ok": False, "error": "Unknown host"})
             return
-        if cmd not in ("start", "stop", "restart"):
+        if cmd not in ("start", "stop", "restart", "start_stream", "stop_stream"):
             self._send_json(400, {"ok": False, "error": "Invalid command"})
+            return
+
+        if cmd == "start_stream":
+            status_code, payload = _start_stream_for_host(host)
+            self._send_json(
+                200 if status_code else 500, {"ok": True, "result": payload}
+            )
+            return
+        if cmd == "stop_stream":
+            status_code, payload = _device_stream_stop(host)
+            self._send_json(
+                200 if status_code else 500, {"ok": True, "result": payload}
+            )
             return
 
         status_code, payload = _device_action(host, cmd)
