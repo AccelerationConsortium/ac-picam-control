@@ -390,7 +390,7 @@ def _render_page(status_map):
   <meta charset="utf-8">
   <title>PiCam Control</title>
   <style>
-    body {{ font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 24px; background: linear-gradient(135deg, #ffe6f2 0%, #fbd6f7 50%, #f2e7ff 100%); color: #4a2c3f; }}
+    body {{ font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 24px; background: linear-gradient(135deg, #ffb3c7 0%, #ffd6a5 20%, #fdffb6 40%, #caffbf 60%, #9bf6ff 80%, #bdb2ff 100%); color: #4a2c3f; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 16px; background: rgba(255,245,250,0.92); border-radius: 16px; overflow: hidden; box-shadow: 0 12px 30px rgba(140, 70, 120, 0.12); }}
     th, td {{ border: 1px solid #f5cde6; padding: 10px; vertical-align: top; }}
     th {{ background: #ffe3f3; color: #6b2d52; }}
@@ -401,8 +401,8 @@ def _render_page(status_map):
     .status.ok {{ background: #dff7e9; color: #2a6b53; }}
     .status.error {{ background: #ffd1e6; color: #8a1f3d; }}
     .watch {{ margin-top: 6px; }}
-    .watch-link {{ display: inline-block; padding: 5px 10px; border-radius: 10px; background: #ffd6ef; color: #7a2d5c; text-decoration: none; font-size: 12px; border: 1px solid #f3b9dc; }}
-    .watch-link:hover {{ background: #ffc3e6; }}
+    .watch-link {{ display: inline-block; padding: 5px 10px; border-radius: 10px; background: #dbe9ff; color: #1f4db8; text-decoration: none; font-size: 12px; border: 1px solid #b7cfff; }}
+    .watch-link:hover {{ background: #c7dcff; }}
     form button {{ margin-right: 6px; border-radius: 10px; border: 1px solid #f3b9dc; background: #ffe3f3; padding: 6px 10px; color: #6b2d52; }}
   </style>
 </head>
