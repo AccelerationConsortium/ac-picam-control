@@ -56,7 +56,7 @@ curl -X POST http://<tailscale-ip>:8080/stop
 
 ## Central control server (optional)
 
-This repo also ships a tiny central server (`server.py`) that aggregates device status and provides a simple web UI with start/stop/restart buttons. It can also create YouTube streams/broadcasts centrally and push stream credentials to devices.
+This repo also ships a tiny central server (`server.py`) that aggregates device status and provides a simple web UI with start/stop/restart buttons. It can also create YouTube streams/broadcasts centrally and push stream credentials to devices. When YouTube credentials are configured, the UI will attempt to look up existing broadcasts by title to show thumbnail previews.
 
 ### Configure
 Set environment variables (example):

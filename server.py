@@ -168,6 +168,35 @@ def _bind_broadcast(access_token, broadcast_id, stream_id):
     )
 
 
+def _list_broadcasts(access_token, status):
+    _, payload = _youtube_request(
+        "GET",
+        "/liveBroadcasts",
+        access_token,
+        params={
+            "part": "snippet,status,contentDetails",
+            "broadcastStatus": status,
+            "maxResults": 50,
+        },
+        body=None,
+    )
+    return payload.get("items") or []
+
+
+def _find_broadcast_for_title(access_token, title):
+    for status in ("active", "upcoming", "completed"):
+        try:
+            items = _list_broadcasts(access_token, status)
+        except Exception as exc:
+            _log(f"broadcast_lookup_error status={status} error={exc}")
+            continue
+        for item in items:
+            snippet = item.get("snippet") or {}
+            if snippet.get("title") == title:
+                return item
+    return None
+
+
 def _device_stream_stop(host):
     return _post_json(_agent_url(host, "/stream/stop"), {})
 
@@ -253,6 +282,30 @@ def _render_page(status_map):
         detail = html.escape(
             info.get("stderr") or info.get("stdout") or info.get("error") or ""
         )
+        if (
+            host not in STREAM_STATE
+            and YT_CLIENT_ID
+            and YT_CLIENT_SECRET
+            and YT_REFRESH_TOKEN
+        ):
+            try:
+                access_token = _get_access_token()
+                title = host.split(".")[0]
+                match = _find_broadcast_for_title(access_token, title)
+                if match:
+                    broadcast_id = match.get("id")
+                    STREAM_STATE[host] = {
+                        "broadcast_id": broadcast_id,
+                        "stream_id": (match.get("contentDetails") or {}).get(
+                            "boundStreamId"
+                        ),
+                        "watch_url": f"https://www.youtube.com/watch?v={broadcast_id}",
+                        "thumbnail_url": f"https://i.ytimg.com/vi/{broadcast_id}/hqdefault.jpg",
+                        "title": (match.get("snippet") or {}).get("title", title),
+                    }
+            except Exception as exc:
+                _log(f"broadcast_lookup_failed host={host} error={exc}")
+
         stream_info = STREAM_STATE.get(host, {})
         watch_url = stream_info.get("watch_url")
         thumbnail_url = stream_info.get("thumbnail_url")
