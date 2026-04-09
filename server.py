@@ -90,8 +90,14 @@ def _youtube_request(method, path, access_token, params=None, body=None):
         headers["Content-Type"] = "application/json"
         data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        return resp.status, json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            return resp.status, json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body_bytes = exc.read() if exc.fp else b""
+        body = body_bytes.decode("utf-8", errors="replace")
+        _log(f"youtube_error status={exc.code} body={body}")
+        raise
 
 
 def _get_access_token():
