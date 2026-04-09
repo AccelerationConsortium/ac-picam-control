@@ -10,6 +10,8 @@ It exposes a tiny HTTP API to start/stop/restart a systemd service.
 - `POST /start` → `systemctl start <service>`
 - `POST /stop` → `systemctl stop <service>`
 - `POST /restart` → `systemctl restart <service>`
+- `POST /stream/start` → start a stream with provided `ffmpeg_url` + `stream_key`
+- `POST /stream/stop` → stop the active stream
 
 ## Requirements
 
@@ -54,7 +56,7 @@ curl -X POST http://<tailscale-ip>:8080/stop
 
 ## Central control server (optional)
 
-This repo also ships a tiny central server (`server.py`) that aggregates device status and provides a simple web UI with start/stop/restart buttons.
+This repo also ships a tiny central server (`server.py`) that aggregates device status and provides a simple web UI with start/stop/restart buttons. It can also create YouTube streams/broadcasts centrally and push stream credentials to devices.
 
 ### Configure
 Set environment variables (example):
@@ -63,6 +65,13 @@ PICAM_SERVER_HOST=100.88.31.43
 PICAM_SERVER_PORT=8081
 PICAM_AGENT_PORT=8080
 PICAM_DEVICES=rpi-zero2w-stream-cam-4ehl.tail6a1dd7.ts.net,rpi-zero2w-stream-cam-ahdk.tail6a1dd7.ts.net,sdl4-rpi-zero2w-stream-dentistry-a.tail6a1dd7.ts.net
+
+# YouTube credentials (server-only)
+YT_CLIENT_ID=...
+YT_CLIENT_SECRET=...
+YT_REFRESH_TOKEN=...
+YT_APP_NAME=ac-picam-control
+YT_PRIVACY=private
 ```
 
 ### Run manually
