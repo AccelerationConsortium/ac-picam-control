@@ -145,6 +145,12 @@ def _create_youtube_stream(access_token, title):
 
 
 def _create_youtube_broadcast(access_token, title):
+    for status in ("active", "upcoming"):
+        items = _list_broadcasts(access_token, status)
+        for item in items:
+            snippet = item.get("snippet") or {}
+            if snippet.get("title") == title and item.get("id"):
+                return item["id"]
     scheduled_start = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
     _, payload = _youtube_request(
         "POST",
