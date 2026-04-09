@@ -47,6 +47,8 @@ JSON_HEADERS = {
     "Cache-Control": "no-store",
 }
 
+STREAM_STATE = {}
+
 
 def _agent_url(host, path):
     return f"http://{host}:{AGENT_PORT}{path}"
@@ -180,12 +182,24 @@ def _start_stream_for_host(host):
         _agent_url(host, "/stream/start"),
         {"ffmpeg_url": ffmpeg_url, "stream_key": stream_key},
     )
+    watch_url = f"https://www.youtube.com/watch?v={broadcast_id}"
+    thumbnail_url = f"https://i.ytimg.com/vi/{broadcast_id}/hqdefault.jpg"
+    STREAM_STATE[host] = {
+        "broadcast_id": broadcast_id,
+        "stream_id": stream_id,
+        "ffmpeg_url": ffmpeg_url,
+        "watch_url": watch_url,
+        "thumbnail_url": thumbnail_url,
+        "title": title,
+    }
     payload = _safe_json(body)
     payload.update(
         {
             "broadcast_id": broadcast_id,
             "stream_id": stream_id,
             "ffmpeg_url": ffmpeg_url,
+            "watch_url": watch_url,
+            "thumbnail_url": thumbnail_url,
         }
     )
     return status_code, payload
@@ -239,11 +253,19 @@ def _render_page(status_map):
         detail = html.escape(
             info.get("stderr") or info.get("stdout") or info.get("error") or ""
         )
+        stream_info = STREAM_STATE.get(host, {})
+        watch_url = stream_info.get("watch_url")
+        thumbnail_url = stream_info.get("thumbnail_url")
+        if watch_url and thumbnail_url:
+            thumb = f'<a href="{html.escape(watch_url)}" target="_blank" rel="noreferrer"><img src="{html.escape(thumbnail_url)}" alt="preview"></a>'
+        else:
+            thumb = '<span class="muted">—</span>'
         rows.append(
             f"""
             <tr>
                 <td><code>{html.escape(host)}</code></td>
                 <td>{status_text}</td>
+                <td class="thumb">{thumb}</td>
                 <td class="detail">{detail}</td>
                 <td>
                     <form method="post" action="/action">
@@ -269,6 +291,8 @@ def _render_page(status_map):
     table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
     .detail {{ max-width: 420px; word-break: break-word; }}
+    .thumb img {{ width: 120px; border-radius: 6px; display: block; }}
+    .muted {{ color: #777; }}
     form button {{ margin-right: 6px; }}
   </style>
 </head>
@@ -280,6 +304,7 @@ def _render_page(status_map):
       <tr>
         <th>Device</th>
         <th>Status</th>
+        <th>Preview</th>
         <th>Details</th>
         <th>Actions</th>
       </tr>
