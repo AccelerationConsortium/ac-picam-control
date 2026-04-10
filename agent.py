@@ -17,6 +17,7 @@ DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
 PICAM_SERVER_URL = os.environ.get("PICAM_SERVER_URL", "")
 PICAM_POLL_INTERVAL = float(os.environ.get("PICAM_POLL_INTERVAL", "8"))
 PICAM_HOSTNAME = os.environ.get("PICAM_HOSTNAME", socket.gethostname())
+PICAM_VFLIP = os.environ.get("PICAM_VFLIP", "1") == "1"
 
 STREAM_WIDTH = int(os.environ.get("PICAM_WIDTH", "640"))
 STREAM_HEIGHT = int(os.environ.get("PICAM_HEIGHT", "360"))
@@ -145,6 +146,8 @@ def _start_stream(ffmpeg_url, stream_key):
         "--framerate",
         str(STREAM_FPS),
     ]
+    if PICAM_VFLIP:
+        libcamera_cmd.append("--vflip")
     if INPUT_CODEC == "h264":
         libcamera_cmd.extend(
             [
