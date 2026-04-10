@@ -612,8 +612,12 @@ def main():
         if host not in DEVICE_HOSTS:
             continue
         try:
-            _log(f"resuming_stream host={host}")
-            _start_stream_for_host(host)
+            status_code, payload = _start_stream_for_host(host)
+            watch_url = payload.get("watch_url")
+            if watch_url:
+                _log(f"resuming_stream host={host} watch_url={watch_url}")
+            else:
+                _log(f"resuming_stream host={host}")
         except Exception as exc:
             _log(f"resume_failed host={host} error={exc}")
     server = HTTPServer((HOST, PORT), ControlHandler)
