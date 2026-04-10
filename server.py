@@ -235,6 +235,26 @@ def _list_broadcasts(access_token, status):
     return payload.get("items") or []
 
 
+def _transition_broadcast(access_token, broadcast_id, status):
+    _youtube_request(
+        "POST",
+        "/liveBroadcasts/transition",
+        access_token,
+        params={"broadcastStatus": status, "id": broadcast_id, "part": "status"},
+        body=None,
+    )
+
+
+def _delete_broadcast(access_token, broadcast_id):
+    _youtube_request(
+        "DELETE",
+        "/liveBroadcasts",
+        access_token,
+        params={"id": broadcast_id},
+        body=None,
+    )
+
+
 def _list_streams(access_token):
     _, payload = _youtube_request(
         "GET",
@@ -539,6 +559,73 @@ def _render_page(status_map):
             """
         )
 
+    device_titles = {host.split(".")[0] for host in DEVICE_HOSTS}
+    broadcast_rows = []
+    broadcast_message = ""
+    if YT_CLIENT_ID and YT_CLIENT_SECRET and YT_REFRESH_TOKEN:
+        try:
+            access_token = _get_access_token()
+            broadcasts = []
+            for status in ("active", "upcoming"):
+                broadcasts.extend(_list_broadcasts(access_token, status))
+            for item in broadcasts:
+                snippet = item.get("snippet") or {}
+                title = snippet.get("title") or ""
+                if title not in device_titles:
+                    continue
+                broadcast_id = item.get("id")
+                if not broadcast_id:
+                    continue
+                status_text = (item.get("status") or {}).get("lifeCycleStatus") or ""
+                scheduled = snippet.get("scheduledStartTime") or ""
+                watch_url = f"https://www.youtube.com/watch?v={broadcast_id}"
+                watch_link = f'<a class="watch-link" href="{html.escape(watch_url)}" target="_blank" rel="noreferrer">Watch</a>'
+                broadcast_rows.append(
+                    f"""
+                    <tr>
+                        <td><code>{html.escape(title)}</code></td>
+                        <td>{html.escape(status_text)}</td>
+                        <td>{html.escape(scheduled)}</td>
+                        <td>{watch_link}</td>
+                        <td>
+                            <form method="post" action="/broadcast/action" class="inline-form">
+                                <input type="hidden" name="id" value="{html.escape(broadcast_id)}">
+                                <button name="action" value="end">End</button>
+                                <button class="danger" name="action" value="delete">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    """
+                )
+        except Exception as exc:
+            broadcast_message = f'<div class="muted">Unable to load broadcasts: {html.escape(str(exc))}</div>'
+    else:
+        broadcast_message = (
+            '<div class="muted">YouTube credentials not configured.</div>'
+        )
+
+    if broadcast_rows:
+        broadcast_section = f"""
+  <table class="broadcasts">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Status</th>
+        <th>Scheduled</th>
+        <th>Watch</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {"".join(broadcast_rows)}
+    </tbody>
+  </table>
+"""
+    else:
+        if not broadcast_message:
+            broadcast_message = '<div class="muted">No matching broadcasts found.</div>'
+        broadcast_section = broadcast_message
+
     return f"""<!doctype html>
 <html>
 <head>
@@ -559,6 +646,9 @@ def _render_page(status_map):
     .watch-link {{ display: inline-block; padding: 5px 10px; border-radius: 10px; background: #dbe9ff; color: #1f4db8; text-decoration: none; font-size: 12px; border: 1px solid #b7cfff; }}
     .watch-link:hover {{ background: #c7dcff; }}
     form button {{ margin-right: 6px; border-radius: 10px; border: 1px solid #f3b9dc; background: #ffe3f3; padding: 6px 10px; color: #6b2d52; }}
+    .inline-form {{ display: inline; }}
+    .danger {{ background: #ffd1e6; border-color: #f3b9dc; color: #8a1f3d; }}
+    .section-title {{ margin-top: 28px; }}
   </style>
 </head>
 <body>
@@ -578,6 +668,9 @@ def _render_page(status_map):
       {"".join(rows)}
     </tbody>
   </table>
+
+  <h2 class="section-title">YouTube Broadcasts</h2>
+  {broadcast_section}
 </body>
 </html>"""
 
@@ -600,6 +693,11 @@ class ControlHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _redirect(self, location):
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.end_headers()
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -636,13 +734,34 @@ class ControlHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         _log(f"http_post path={path}")
-        if path != "/action":
+        if path not in ("/action", "/broadcast/action"):
             self._send_json(404, {"ok": False, "error": "not found"})
             return
 
         length = int(self.headers.get("Content-Length", "0") or "0")
         body = self.rfile.read(length).decode("utf-8")
         params = parse_qs(body)
+
+        if path == "/broadcast/action":
+            broadcast_id = (params.get("id") or [""])[0]
+            action = (params.get("action") or [""])[0]
+            if not broadcast_id or action not in ("end", "delete"):
+                self._send_json(400, {"ok": False, "error": "Invalid request"})
+                return
+            try:
+                access_token = _get_access_token()
+                if action == "end":
+                    _transition_broadcast(access_token, broadcast_id, "complete")
+                else:
+                    _delete_broadcast(access_token, broadcast_id)
+                self._redirect("/")
+            except Exception as exc:
+                _log(
+                    f"broadcast_action_failed id={broadcast_id} action={action} error={exc}"
+                )
+                self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
         host = (params.get("host") or [""])[0]
         cmd = (params.get("cmd") or [""])[0]
 
