@@ -270,6 +270,50 @@ def _device_stream_stop(host):
 def _start_stream_for_host(host):
     access_token = _get_access_token()
     title = host.split(".")[0]
+    existing = STREAM_STATE.get(host) or {}
+    if (
+        existing.get("ffmpeg_url")
+        and existing.get("stream_key")
+        and existing.get("broadcast_id")
+    ):
+        ffmpeg_url = existing["ffmpeg_url"]
+        stream_key = existing["stream_key"]
+        broadcast_id = existing["broadcast_id"]
+        stream_id = existing.get("stream_id")
+        status_code, body = _post_json(
+            _agent_url(host, "/stream/start"),
+            {"ffmpeg_url": ffmpeg_url, "stream_key": stream_key},
+        )
+        broadcast = _get_broadcast(access_token, broadcast_id)
+        thumbnails = (broadcast.get("snippet") or {}).get("thumbnails") or {}
+        thumbnail_url = (
+            thumbnails.get("high")
+            or thumbnails.get("medium")
+            or thumbnails.get("default")
+            or {}
+        ).get("url")
+        watch_url = f"https://www.youtube.com/watch?v={broadcast_id}"
+        STREAM_STATE[host] = {
+            "broadcast_id": broadcast_id,
+            "stream_id": stream_id,
+            "ffmpeg_url": ffmpeg_url,
+            "stream_key": stream_key,
+            "watch_url": watch_url,
+            "thumbnail_url": thumbnail_url,
+            "title": title,
+        }
+        payload = _safe_json(body)
+        payload.update(
+            {
+                "broadcast_id": broadcast_id,
+                "stream_id": stream_id,
+                "ffmpeg_url": ffmpeg_url,
+                "stream_key": stream_key,
+                "watch_url": watch_url,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+        return status_code, payload
     stream_id, ffmpeg_url, stream_key = _create_youtube_stream(access_token, title)
     broadcast_id = _create_youtube_broadcast(access_token, title, stream_id)
     _bind_broadcast(access_token, broadcast_id, stream_id)
