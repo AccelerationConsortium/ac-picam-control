@@ -235,6 +235,35 @@ def _list_broadcasts(access_token, status):
     return payload.get("items") or []
 
 
+def _list_streams(access_token):
+    _, payload = _youtube_request(
+        "GET",
+        "/liveStreams",
+        access_token,
+        params={
+            "part": "snippet,cdn,contentDetails,status",
+            "mine": "true",
+            "maxResults": 50,
+        },
+        body=None,
+    )
+    return payload.get("items") or []
+
+
+def _get_stream(access_token, stream_id):
+    _, payload = _youtube_request(
+        "GET",
+        "/liveStreams",
+        access_token,
+        params={"part": "snippet,cdn,contentDetails,status", "id": stream_id},
+        body=None,
+    )
+    items = payload.get("items") or []
+    if not items:
+        raise RuntimeError("Stream not found")
+    return items[0]
+
+
 def _get_broadcast(access_token, broadcast_id):
     _, payload = _youtube_request(
         "GET",
@@ -247,6 +276,19 @@ def _get_broadcast(access_token, broadcast_id):
     if not items:
         raise RuntimeError("Broadcast not found")
     return items[0]
+
+
+def _find_stream_for_title(access_token, title):
+    try:
+        items = _list_streams(access_token)
+    except Exception as exc:
+        _log(f"stream_lookup_error error={exc}")
+        return None
+    for item in items:
+        snippet = item.get("snippet") or {}
+        if snippet.get("title") == title:
+            return item
+    return None
 
 
 def _find_broadcast_for_title(access_token, title):
@@ -314,9 +356,41 @@ def _start_stream_for_host(host):
             }
         )
         return status_code, payload
-    stream_id, ffmpeg_url, stream_key = _create_youtube_stream(access_token, title)
-    broadcast_id = _create_youtube_broadcast(access_token, title, stream_id)
-    _bind_broadcast(access_token, broadcast_id, stream_id)
+
+    broadcast = _find_broadcast_for_title(access_token, title)
+    broadcast_id = broadcast.get("id") if broadcast else None
+    bound_stream_id = (
+        (broadcast.get("contentDetails") or {}).get("boundStreamId")
+        if broadcast
+        else None
+    )
+
+    stream = None
+    if bound_stream_id:
+        stream = _get_stream(access_token, bound_stream_id)
+    elif broadcast:
+        stream = _find_stream_for_title(access_token, title)
+    else:
+        stream = _find_stream_for_title(access_token, title)
+
+    if stream:
+        stream_id = stream["id"]
+        ingestion = (stream.get("cdn") or {}).get("ingestionInfo") or {}
+        ffmpeg_url = ingestion.get("ingestionAddress")
+        stream_key = ingestion.get("streamName")
+        if not (ffmpeg_url and stream_key):
+            raise RuntimeError("YouTube stream response missing ingestion info")
+        if not broadcast_id:
+            broadcast_id = _create_youtube_broadcast(access_token, title, stream_id)
+        elif not bound_stream_id:
+            _bind_broadcast(access_token, broadcast_id, stream_id)
+    else:
+        stream_id, ffmpeg_url, stream_key = _create_youtube_stream(access_token, title)
+        if not broadcast_id:
+            broadcast_id = _create_youtube_broadcast(access_token, title, stream_id)
+        else:
+            _bind_broadcast(access_token, broadcast_id, stream_id)
+
     status_code, body = _post_json(
         _agent_url(host, "/stream/start"),
         {"ffmpeg_url": ffmpeg_url, "stream_key": stream_key},
