@@ -93,10 +93,15 @@ def _agent_url(host, path):
 def _fetch_json(url, method="GET"):
     _log(f"agent_request method={method} url={url}")
     req = urllib.request.Request(url, method=method)
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        body = resp.read().decode("utf-8")
-        _log(f"agent_response status={resp.status} url={url}")
-        return resp.status, body
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            body = resp.read().decode("utf-8")
+            _log(f"agent_response status={resp.status} url={url}")
+            return resp.status, body
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        _log(f"agent_response status={exc.code} url={url} body={body}")
+        return exc.code, body
 
 
 def _post_json(url, payload):
@@ -104,9 +109,14 @@ def _post_json(url, payload):
     req = urllib.request.Request(
         url, data=data, method="POST", headers={"Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        body = resp.read().decode("utf-8")
-        return resp.status, body
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            body = resp.read().decode("utf-8")
+            return resp.status, body
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        _log(f"agent_response status={exc.code} url={url} body={body}")
+        return exc.code, body
 
 
 def _safe_json(text):
@@ -114,6 +124,10 @@ def _safe_json(text):
         return json.loads(text)
     except json.JSONDecodeError:
         return {"raw": text}
+
+
+def _is_success(status_code):
+    return 200 <= status_code < 300
 
 
 def _youtube_request(method, path, access_token, params=None, body=None):
@@ -773,23 +787,28 @@ class ControlHandler(BaseHTTPRequestHandler):
 
         if cmd == "start_stream":
             status_code, payload = _start_stream_for_host(host)
-            if status_code:
+            if _is_success(status_code):
                 _set_desired_state(host, True)
             self._send_json(
-                200 if status_code else 500, {"ok": True, "result": payload}
+                200 if _is_success(status_code) else 500,
+                {"ok": _is_success(status_code), "result": payload},
             )
             return
         if cmd == "stop_stream":
             status_code, payload = _device_stream_stop(host)
-            if status_code:
+            if _is_success(status_code):
                 _set_desired_state(host, False)
             self._send_json(
-                200 if status_code else 500, {"ok": True, "result": payload}
+                200 if _is_success(status_code) else 500,
+                {"ok": _is_success(status_code), "result": payload},
             )
             return
 
         status_code, payload = _device_action(host, cmd)
-        self._send_json(200 if status_code else 500, {"ok": True, "result": payload})
+        self._send_json(
+            200 if _is_success(status_code) else 500,
+            {"ok": _is_success(status_code), "result": payload},
+        )
 
     def log_message(self, format, *args):
         return
