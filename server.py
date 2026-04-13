@@ -142,7 +142,9 @@ def _youtube_request(method, path, access_token, params=None, body=None):
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-            return resp.status, json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8")
+            payload = json.loads(raw) if raw.strip() else {}
+            return resp.status, payload
     except urllib.error.HTTPError as exc:
         body_bytes = exc.read() if exc.fp else b""
         body = body_bytes.decode("utf-8", errors="replace")
