@@ -7,6 +7,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
@@ -36,11 +37,32 @@ JSON_HEADERS = {
 
 STREAM_CAMERA_PROC = None
 STREAM_FFMPEG_PROC = None
+STREAM_LOG_LINES = deque(maxlen=80)
 
 
 def _log(message):
     if DEBUG:
         print(message, flush=True)
+
+
+def _append_stream_log(prefix, line):
+    text = line.strip()
+    if not text:
+        return
+    entry = f"{prefix}: {text}"
+    STREAM_LOG_LINES.append(entry)
+    _log(entry)
+
+
+def _capture_stream_output(proc, prefix):
+    try:
+        for line in iter(proc.stderr.readline, ""):
+            _append_stream_log(prefix, line)
+    finally:
+        try:
+            proc.stderr.close()
+        except Exception:
+            pass
 
 
 def _run_systemctl(*args):
@@ -75,9 +97,15 @@ def _get_camera_command():
 
 
 def _stream_status():
+    ffmpeg_running = STREAM_FFMPEG_PROC is not None and STREAM_FFMPEG_PROC.poll() is None
+    camera_running = STREAM_CAMERA_PROC is not None and STREAM_CAMERA_PROC.poll() is None
     return {
-        "ok": STREAM_FFMPEG_PROC is not None,
-        "running": STREAM_FFMPEG_PROC is not None,
+        "ok": ffmpeg_running,
+        "running": ffmpeg_running,
+        "camera_running": camera_running,
+        "ffmpeg_returncode": None if STREAM_FFMPEG_PROC is None else STREAM_FFMPEG_PROC.poll(),
+        "camera_returncode": None if STREAM_CAMERA_PROC is None else STREAM_CAMERA_PROC.poll(),
+        "log_tail": list(STREAM_LOG_LINES),
     }
 
 
@@ -128,6 +156,7 @@ def _reconcile_loop():
 def _start_stream(ffmpeg_url, stream_key):
     global STREAM_CAMERA_PROC, STREAM_FFMPEG_PROC
     _stop_stream()
+    STREAM_LOG_LINES.clear()
 
     gop = str(STREAM_FPS * 2)
     camera_cmd = _get_camera_command()
@@ -242,12 +271,41 @@ def _start_stream(ffmpeg_url, stream_key):
     )
 
     STREAM_CAMERA_PROC = subprocess.Popen(
-        libcamera_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        libcamera_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
     STREAM_FFMPEG_PROC = subprocess.Popen(
-        ffmpeg_cmd, stdin=STREAM_CAMERA_PROC.stdout, stderr=subprocess.STDOUT
+        ffmpeg_cmd,
+        stdin=STREAM_CAMERA_PROC.stdout,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
     STREAM_CAMERA_PROC.stdout.close()
+    threading.Thread(
+        target=_capture_stream_output,
+        args=(STREAM_CAMERA_PROC, "camera"),
+        daemon=True,
+    ).start()
+    threading.Thread(
+        target=_capture_stream_output,
+        args=(STREAM_FFMPEG_PROC, "ffmpeg"),
+        daemon=True,
+    ).start()
+    time.sleep(3)
+    if STREAM_CAMERA_PROC.poll() is not None:
+        raise RuntimeError(
+            f"camera exited early with code {STREAM_CAMERA_PROC.returncode}: "
+            + "; ".join(list(STREAM_LOG_LINES)[-10:])
+        )
+    if STREAM_FFMPEG_PROC.poll() is not None:
+        raise RuntimeError(
+            f"ffmpeg exited early with code {STREAM_FFMPEG_PROC.returncode}: "
+            + "; ".join(list(STREAM_LOG_LINES)[-10:])
+        )
 
 
 class PicamHandler(BaseHTTPRequestHandler):
