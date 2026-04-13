@@ -36,7 +36,7 @@ It exposes a tiny HTTP API to start/stop/restart a systemd service.
 ```
 sudo cp /home/ac/ac-picam-control/picam-control.service /etc/systemd/system/picam-control.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now picam-control
+sudo systemctl start picam-control
 ```
 
 4) Check status:
@@ -61,10 +61,10 @@ This repo also ships a tiny central server (`server.py`) that aggregates device 
 ### Configure
 Set environment variables (example):
 ```
-PICAM_SERVER_HOST=100.88.31.43
+PICAM_SERVER_HOST=127.0.0.1
 PICAM_SERVER_PORT=8081
 PICAM_AGENT_PORT=8080
-PICAM_DEVICES=rpi-zero2w-stream-cam-4ehl.tail6a1dd7.ts.net,rpi-zero2w-stream-cam-ahdk.tail6a1dd7.ts.net,sdl4-rpi-zero2w-stream-dentistry-a.tail6a1dd7.ts.net
+PICAM_DEVICES=cam-a.tailnet.example.ts.net,cam-b.tailnet.example.ts.net
 
 # YouTube credentials (server-only)
 YT_CLIENT_ID=...
@@ -84,7 +84,7 @@ Install the provided unit:
 ```
 sudo cp /home/ac/ac-picam-control/picam-control-server.service /etc/systemd/system/picam-control-server.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now picam-control-server
+sudo systemctl start picam-control-server
 ```
 
 Then visit:

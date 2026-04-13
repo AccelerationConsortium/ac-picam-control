@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=ac
 WorkingDirectory=/home/ac/ac-picam-control
-Environment=PICAM_AGENT_HOST=0.0.0.0
+Environment=PICAM_AGENT_HOST=127.0.0.1
 Environment=PICAM_AGENT_PORT=8080
 Environment=PICAM_SERVICE_NAME=picam
 ExecStart=/usr/bin/python3 /home/ac/ac-picam-control/agent.py

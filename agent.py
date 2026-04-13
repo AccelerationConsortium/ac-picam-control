@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
 SERVICE_NAME = os.environ.get("PICAM_SERVICE_NAME", "picam")
-HOST = os.environ.get("PICAM_AGENT_HOST", "0.0.0.0")
+HOST = os.environ.get("PICAM_AGENT_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PICAM_AGENT_PORT", "8080"))
 DEBUG = os.environ.get("PICAM_DEBUG", "0") == "1"
 PICAM_SERVER_URL = os.environ.get("PICAM_SERVER_URL", "")

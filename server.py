@@ -10,18 +10,12 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 
-HOST = os.environ.get("PICAM_SERVER_HOST", "100.88.31.43")
+HOST = os.environ.get("PICAM_SERVER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PICAM_SERVER_PORT", "8081"))
 
 RAW_DEVICES = os.environ.get(
     "PICAM_DEVICES",
-    ",".join(
-        [
-            "rpi-zero2w-stream-cam-4ehl.tail6a1dd7.ts.net",
-            "rpi-zero2w-stream-cam-ahdk.tail6a1dd7.ts.net",
-            "sdl4-rpi-zero2w-stream-dentistry-a.tail6a1dd7.ts.net",
-        ]
-    ),
+    "",
 )
 DEVICE_HOSTS = [d.strip() for d in RAW_DEVICES.split(",") if d.strip()]
 
