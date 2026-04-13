@@ -64,7 +64,7 @@ Set environment variables (example):
 PICAM_SERVER_HOST=127.0.0.1
 PICAM_SERVER_PORT=8081
 PICAM_AGENT_PORT=8080
-PICAM_DEVICES=cam-a.tailnet-name.ts.net,cam-b.tailnet-name.ts.net,cam-c.tailnet-name.ts.net
+PICAM_DEVICES=cam-a.tailnet-name.ts.net,cam-b.tailnet-name.ts.net
 
 # YouTube credentials (server-only)
 YT_CLIENT_ID=...
@@ -115,5 +115,5 @@ Then tag each device `tag:picam` and ensure only ops admins can connect.
 ## Notes
 
 - This agent does **no auth** beyond Tailscale ACLs.
-- Bind to a Tailscale IP if you want to avoid LAN exposure:
-  set `PICAM_AGENT_HOST` to the device’s Tailscale IP.
+- The provided service file binds the agent to `127.0.0.1` by default.
+- To expose the agent over Tailscale, set `PICAM_AGENT_HOST` to the device's Tailscale IP in the service file or environment.

@@ -19,7 +19,6 @@ RAW_DEVICES = os.environ.get(
         [
             "cam-a.tailnet-name.ts.net",
             "cam-b.tailnet-name.ts.net",
-            "cam-c.tailnet-name.ts.net",
         ]
     ),
 )
